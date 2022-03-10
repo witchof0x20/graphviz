@@ -1,0 +1,149 @@
+// Copyright (C) 2022 Jade
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+use crate::ast::{Stmt, Graph, GraphType, ID, NodeID, Port, CompassPt, AttrList, AList, EdgePoint, Subgraph, AttrStmtType};
+
+grammar;
+
+/// graph  :   [ strict ] (graph | digraph) [ ID ] '{' stmt_list '}'
+pub Graph: Graph = {
+  <strict:"strict"?> "graph" <id: ID> "{" <stmt_list: StmtList<"--">> "}" => Graph {
+    is_strict: strict.is_some(),
+    graph_type: GraphType::Digraph,
+    id,
+    stmt_list,
+  },
+  <strict:"strict"?> "digraph" <id: ID> "{" <stmt_list: StmtList<"->">> "}" => Graph {
+    is_strict: strict.is_some(),
+    graph_type: GraphType::Digraph,
+    id,
+    stmt_list,
+  },
+}
+
+pub ID: ID = {
+  r"[a-zA-Z_\x80-\xFF][a-zA-Z0-9_\x80-\xFF]*" => ID::Name(<>.to_owned()),
+  r"[-]?[0-9]+" => ID::Integer(<>.parse().unwrap()),
+  r"[-]?(([0-9]+)?\.[0-9]*)" => ID::Float(<>.parse().unwrap()),
+  r#""[^"]*""# => ID::StringLiteral(<>.strip_prefix('"').unwrap_or_else(|| "").strip_suffix('"').unwrap_or_else(|| "").to_owned()),
+}
+
+/// stmt_list   :   [ stmt [ ';' ] stmt_list ]
+StmtList<T>: Vec<Stmt>= {
+  <sl:(Stmt<T> ";"? StmtList<T>)?> => match sl {
+    Some(sl) => {
+      let (head, _, tail) = <>;
+      let mut statements = Vec::new();
+      statements.push(head);
+      for stmt in tail.into_iter() {
+        statements.push(stmt);
+      }
+      statements
+    }
+    None => {
+      Vec::new()
+    }
+  }
+}
+/// stmt  :   node_stmt
+///  |   edge_stmt
+///  |   attr_stmt
+///  |   ID '=' ID
+///  |   subgraph
+Stmt<T>: Stmt = {
+  // (graph | node | edge) attr_list
+  <ty: AttrStmtType> <attrs: AttrList> => Stmt::Attr{ ty, attrs },
+  //node_stmt   :   node_id [ attr_list ]
+  <node_id: NodeID> <attrs: AttrList?> => Stmt::Node{node_id, attrs},
+  // edge_stmt  :   (node_id | subgraph) edgeRHS [ attr_list ] 
+  // edge_stmt  :   edge_point edgeRHS [ attr_list ] 
+  <start: EdgePoint<T>> <rhs: EdgeRHS<T>> <attrs: AttrList?> => Stmt::Edge { start, rhs, attrs },
+  <lhs: ID> "=" <rhs: ID>  => Stmt::Assign(lhs, rhs),
+  Subgraph<T> => Stmt::Subgraph(<>),
+}
+
+NodeID: NodeID = {
+  <id: ID> <port: Port?> => NodeID {id, port}
+}
+Port: Port = {
+  ":" <compass_pt: CompassPt> => Port::Compass(compass_pt),
+  ":" <id: ID> => Port::ID(id),
+  ":" <id: ID> ":" <compass_pt: CompassPt> => Port::IDCompass(id, compass_pt),
+}
+
+CompassPt: CompassPt = {
+  "n" => CompassPt::N,
+  "ne" => CompassPt::NE,
+  "e" => CompassPt::E,
+  "se" => CompassPt::SE,
+  "s" => CompassPt::S,
+  "sw" => CompassPt::SW,
+  "w" => CompassPt::W,
+  "nw" => CompassPt::NW,
+  "c" => CompassPt::C,
+  "_" => CompassPt::Underscore,
+}
+
+
+AttrList: AttrList = {
+  ("[" AList? "]")+ => <>.into_iter().map(|(_,alist,_)| alist).flatten().collect()
+}
+
+AList: AList = {
+  <lhs: ID> "=" <rhs: ID> AttrDelim? <tail: AList?> => {
+    let mut alist = vec![(lhs, rhs)];
+    if let Some(tail) = tail {
+      for attr in tail.into_iter() {
+        alist.push(attr);
+      }
+    }
+    alist
+  }
+}
+AttrDelim: () = {
+  ";" => (),
+  "," => ()
+}
+
+/// edge_point : (node_id | subgraph)
+EdgePoint<T>: EdgePoint = {
+  NodeID => EdgePoint::NodeID(<>),
+  Subgraph<T> => EdgePoint::Subgraph(<>)
+}
+
+/// subgraph 	: 	[ "subgraph" [ ID ] ] '{' stmt_list '}'
+Subgraph<T>: Subgraph = {
+  <id: ("subgraph" ID?)?> "{" <stmt_list: StmtList<T>> "}" => {
+    let id = match id {
+      Some((_, id))  => id,
+      _ => None,
+    };
+    Subgraph {
+      id,
+      stmt_list
+    }
+  }
+}
+/// edgeop (node_id | subgraph) [ edgeRHS ]
+/// (edgeop (node_id | subgraph))+
+EdgeRHS<T>: Vec<EdgePoint> = {
+  (T EdgePoint<T>)+ => <>.into_iter().map(|(_,p)| p).collect()
+}
+
+/// attr_stmt_type: (graph | node | edge) 
+AttrStmtType: AttrStmtType = {
+  "graph" => AttrStmtType::Graph,
+  "node" => AttrStmtType::Node,
+  "edge" => AttrStmtType::Edge
+}
