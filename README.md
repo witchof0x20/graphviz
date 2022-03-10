@@ -4,7 +4,7 @@
 Add to `Cargo.toml`
 ```toml
 [dependencies]
-graphviz = {git = https://github.com/witchof0x20/graphviz}
+graphviz = {git = "https://github.com/witchof0x20/graphviz"}
 ```
 `example.rs`:
 ```rust
