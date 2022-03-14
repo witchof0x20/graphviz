@@ -51,7 +51,7 @@ impl fmt::Display for GraphType {
         })
     }
 }
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Hash, PartialEq)]
 pub enum ID {
     Name(String),
     Integer(isize),
