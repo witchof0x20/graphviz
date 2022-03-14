@@ -1,11 +1,5 @@
 # graphviz
 
-# How to use
-Add to `Cargo.toml`
-```toml
-[dependencies]
-graphviz = {git = "https://github.com/witchof0x20/graphviz"}
-```
 `example.rs`:
 ```rust
 fn main() {

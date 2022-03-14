@@ -51,7 +51,7 @@ impl fmt::Display for GraphType {
         })
     }
 }
-#[derive(Debug, Hash, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ID {
     Name(String),
     Integer(isize),
@@ -210,6 +210,7 @@ pub enum EdgePoint {
     NodeID(NodeID),
     Subgraph(Subgraph),
 }
+
 impl fmt::Display for EdgePoint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -218,6 +219,7 @@ impl fmt::Display for EdgePoint {
         }
     }
 }
+
 struct EdgePointsDisplay<'a>(&'a [EdgePoint]);
 impl<'a> fmt::Display for EdgePointsDisplay<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
